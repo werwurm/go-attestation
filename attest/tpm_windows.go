@@ -391,7 +391,24 @@ func (t *windowsTPM) newKey(ak *AK, config *KeyConfig) (*Key, error) {
 }
 
 func (t *windowsTPM) loadKey(opaqueBlob []byte) (*Key, error) {
-	return nil, fmt.Errorf("not implemented")
+	keyData, err := deserializeKey(opaqueBlob, TPMVersion20)
+	if err != nil {
+		return nil, fmt.Errorf("deserializeKey() failed: %v", err)
+	}	
+	hnd, err := t.pcp.LoadKeyByName(keyData.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load key: %v", err)
+	}
+	tpmPub, err := tpm2.DecodePublic(keyData.Public)
+	if err != nil {
+		return nil, fmt.Errorf("decode public key: %v", err)
+	}
+	pubKey, err := tpmPub.Key()
+	if err != nil {
+		return nil, fmt.Errorf("access public key: %v", err)
+	}
+
+	return &Key{key: newWindowsKey20(hnd, keyData.Name, keyData.Public, keyData.CreateData, keyData.CreateAttestation, keyData.CreateSignature), pub: pubKey, tpm: t}, nil
 }
 
 func (t *windowsTPM) loadKeyWithParent(opaqueBlob []byte, parent ParentKeyConfig) (*Key, error) {
